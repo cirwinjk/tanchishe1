@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <title>贪吃蛇游戏</title>
+    <style>
+        #gameCanvas {
+            border: 2px solid black;
+        }
+        .container {
+            text-align: center;
+            margin-top: 20px;
+        }
+        #score {
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        .controls {
+            margin: 10px 0;
+        }
+        button {
+            padding: 8px 16px;
+            margin: 0 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .speed-controls {
+            margin: 10px 0;
+        }
+        .speed-btn {
+            padding: 5px 10px;
+            margin: 0 3px;
+            cursor: pointer;
+            border: 2px solid #ccc;
+            border-radius: 4px;
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+        .speed-btn:hover {
+            background-color: #e0e0e0;
+        }
+        .speed-btn.selected {
+            background-color: orange;
+            color: white;
+            border-color: #ff9800;
+            box-shadow: 0 0 5px rgba(255, 152, 0, 0.5);
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="score">分数：0</div>
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <div class="controls">
+            <button id="startBtn">开始</button>
+            <button id="pauseBtn" disabled>暂停</button>
+            <button id="restartBtn" disabled>重新开始</button>
+        </div>
+        <div class="speed-controls">
+            <span>速度：</span>
+            <button class="speed-btn" data-speed="50">很快</button>
+            <button class="speed-btn" data-speed="150">快</button>
+            <button class="speed-btn" data-speed="300">中</button>
+            <button class="speed-btn" data-speed="500">慢</button>
+            <button class="speed-btn" data-speed="800">很慢</button>
+        </div>
+        <p>使用方向键控制蛇的移动</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const startBtn = document.getElementById('startBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+        const restartBtn = document.getElementById('restartBtn');
+        
+        const gridSize = 20;
+        let snake = [
+            {x: 10, y: 10}
+        ];
+        let food = {
+            x: Math.floor(Math.random() * (canvas.width / gridSize)),
+            y: Math.floor(Math.random() * (canvas.height / gridSize))
+        };
+        let dx = 0;
+        let dy = 0;
+        let score = 0;
+        let gameOver = false;
+        let gameStarted = false;
+        let gamePaused = false;
+        let gameLoop;
+        let firstMove = false;
+        let gameSpeed = 300; // 默认中等速度
+
+        // 初始化游戏状态
+        function initGame() {
+            snake = [{x: 10, y: 10}];
+            dx = 0;
+            dy = 0;
+            score = 0;
+            gameOver = false;
+            firstMove = false;
+            gameSpeed = 300; // 重置速度为默认值
+            
+            // 确保初始化时没有按钮被选中
+            speedBtns.forEach(btn => btn.classList.remove('selected'));
+            
+            scoreElement.textContent = `分数：${score}`;
+            food = {
+                x: Math.floor(Math.random() * (canvas.width / gridSize)),
+                y: Math.floor(Math.random() * (canvas.height / gridSize))
+            };
+        }
+
+        // 按钮事件处理
+        startBtn.addEventListener('click', () => {
+            if (!gameStarted) {
+                gameStarted = true;
+                startBtn.disabled = true;
+                pauseBtn.disabled = false;
+                restartBtn.disabled = false;
+                startGameLoop();
+            }
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            if (gameStarted && !gameOver) {
+                if (gamePaused) {
+                    gamePaused = false;
+                    pauseBtn.textContent = '暂停';
+                    startGameLoop();
+                } else {
+                    gamePaused = true;
+                    pauseBtn.textContent = '继续';
+                    clearTimeout(gameLoop);
+                }
+            }
+        });
+
+        restartBtn.addEventListener('click', () => {
+            initGame();
+            gameStarted = true;
+            gamePaused = false;
+            pauseBtn.textContent = '暂停';
+            startBtn.disabled = true;
+            pauseBtn.disabled = false;
+            startGameLoop();
+        });
+
+        // 添加速度控制逻辑
+        const speedBtns = document.querySelectorAll('.speed-btn');
+        speedBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                // 先移除所有按钮的选中状态
+                speedBtns.forEach(b => b.classList.remove('selected'));
+                // 给当前点击的按钮添加选中状态
+                btn.classList.add('selected');
+                // 设置新的速度
+                gameSpeed = parseInt(btn.dataset.speed);
+                
+                // 如果游戏已经开始且未暂停，更新循环
+                if (gameStarted && !gamePaused) {
+                    clearTimeout(gameLoop);
+                    startGameLoop();
+                }
+            });
+        });
+
+        // 游戏主循环
+        function startGameLoop() {
+            function loop() {
+                if (gameOver) {
+                    ctx.fillStyle = 'black';
+                    ctx.font = '30px Arial';
+                    ctx.fillText('游戏结束！', canvas.width/2 - 70, canvas.height/2);
+                    return;
+                }
+
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                drawFood();
+                moveSnake();
+                drawSnake();
+                gameLoop = setTimeout(loop, gameSpeed); // 使用gameSpeed替代固定值
+            }
+            loop();
+        }
+
+        // 控制方向
+        document.addEventListener('keydown', (e) => {
+            if (!firstMove) {
+                firstMove = true;
+            }
+            
+            if (e.key === 'ArrowUp') {
+                dx = 0;
+                dy = -1;
+            }
+            if (e.key === 'ArrowDown') {
+                dx = 0;
+                dy = 1;
+            }
+            if (e.key === 'ArrowLeft') {
+                dx = -1;
+                dy = 0;
+            }
+            if (e.key === 'ArrowRight') {
+                dx = 1;
+                dy = 0;
+            }
+        });
+
+        function drawSnake() {
+            ctx.fillStyle = 'green';
+            snake.forEach(segment => {
+                ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
+            });
+        }
+
+        function drawFood() {
+            ctx.fillStyle = 'red';
+            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+        }
+
+        function moveSnake() {
+            if (!firstMove) {
+                return;
+            }
+
+            const head = {
+                x: snake[0].x + dx,
+                y: snake[0].y + dy
+            };
+
+            // 检查是否撞墙
+            if (head.x < 0 || head.x >= canvas.width / gridSize ||
+                head.y < 0 || head.y >= canvas.height / gridSize) {
+                gameOver = true;
+                return;
+            }
+
+            // 检查是否撞到自己
+            for (let i = 0; i < snake.length; i++) {
+                if (head.x === snake[i].x && head.y === snake[i].y) {
+                    gameOver = true;
+                    return;
+                }
+            }
+
+            snake.unshift(head);
+
+            // 检查是否吃到食物
+            if (head.x === food.x && head.y === food.y) {
+                score += 10;
+                scoreElement.textContent = `分数：${score}`;
+                food = {
+                    x: Math.floor(Math.random() * (canvas.width / gridSize)),
+                    y: Math.floor(Math.random() * (canvas.height / gridSize))
+                };
+            } else {
+                snake.pop();
+            }
+        }
+
+        // 初始化画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    </script>
+</body>
+</html> 
